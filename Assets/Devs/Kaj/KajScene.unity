@@ -375,7 +375,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 38a8108dc5dac5e44a3af24d6b8bbd71, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -450,15 +450,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8f809aca1afc11640ac5830414d3a286, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Generation
-  spawnList:
-  - prefab: {fileID: 3682191967407951830, guid: aa5321096ce033e44a73e9f5615fa621, type: 3}
-    amount: 100
-  - prefab: {fileID: 7668714529969270972, guid: c31cb5f887637074dbc72292d7843f4f, type: 3}
-    amount: 20
-  - prefab: {fileID: 6212737122420065320, guid: 2d7a9474ec6fd6547b7f663fe841128c, type: 3}
-    amount: 3
-  spawnSurface: {fileID: 765693893}
-  totalLoops: 1
+  _SpawnList:
+  - Prefab: {fileID: 3682191967407951830, guid: aa5321096ce033e44a73e9f5615fa621, type: 3}
+    Amount: 50
+    MinDistanceFromPlayer: 0
+  - Prefab: {fileID: 7668714529969270972, guid: c31cb5f887637074dbc72292d7843f4f, type: 3}
+    Amount: 10
+    MinDistanceFromPlayer: 3
+  - Prefab: {fileID: 6212737122420065320, guid: 2d7a9474ec6fd6547b7f663fe841128c, type: 3}
+    Amount: 3
+    MinDistanceFromPlayer: 3
+  _SpawnSurface: {fileID: 765693893}
+  _TotalLoops: 1
+  player: {fileID: 1761461189}
 --- !u!4 &845067104
 Transform:
   m_ObjectHideFlags: 0
@@ -550,6 +554,11 @@ MonoBehaviour:
   m_CameraFloorOffsetObject: {fileID: 1761461184}
   m_RequestedTrackingOriginMode: 1
   m_CameraYOffset: 1.1176
+--- !u!4 &1761461189 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1429728536131650682, guid: c116b7497ab8ca34c9188965d4295e27, type: 3}
+  m_PrefabInstance: {fileID: 674432867}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

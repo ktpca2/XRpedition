@@ -1,20 +1,25 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+[System.Serializable]
+public class SpawnEntry
+{
+    public GameObject Prefab;
+    public int Amount = 1;
+
+    [Header("Spawn Restrictions")]
+    public float MinDistanceFromPlayer = 0f;
+}
+
 public class Generation : MonoBehaviour
 {
-    [System.Serializable]
-    public class SpawnEntry
-    {
-        public GameObject prefab;
-        public int amount = 1;
-    }
-
     [Header("Spawner Settings")]
-    [SerializeField] private List<SpawnEntry> spawnList = new List<SpawnEntry>();
+    [SerializeField] private List<SpawnEntry> _SpawnList = new List<SpawnEntry>();
+    [SerializeField] private GameObject _SpawnSurface;
+    [SerializeField] private int _TotalLoops = 1;
 
-    [SerializeField] private GameObject spawnSurface;
-    [SerializeField] private int totalLoops = 1;
+    [Header("Player Reference")]
+    [SerializeField] private Transform player;
 
     private List<(Vector3 pos, float radius)> placed = new List<(Vector3, float)>();
 
@@ -23,27 +28,27 @@ public class Generation : MonoBehaviour
         if (!IsValid())
             return;
 
-        var col = spawnSurface.GetComponent<Collider>();
+        var col = _SpawnSurface.GetComponent<Collider>();
 
-        for (int loop = 0; loop < totalLoops; loop++)
+        for (int loop = 0; loop < _TotalLoops; loop++)
             SpawnAll(col);
     }
 
     private bool IsValid()
     {
-        if (spawnList == null || spawnList.Count == 0)
+        if (_SpawnList == null || _SpawnList.Count == 0)
         {
             Debug.LogWarning($"{nameof(Generation)}: Spawn list is empty.");
             return false;
         }
 
-        if (!spawnSurface)
+        if (!_SpawnSurface)
         {
             Debug.LogWarning($"{nameof(Generation)}: No spawn surface assigned.");
             return false;
         }
 
-        if (!spawnSurface.GetComponent<Collider>())
+        if (!_SpawnSurface.GetComponent<Collider>())
         {
             Debug.LogWarning($"{nameof(Generation)}: Spawn surface has no collider.");
             return false;
@@ -54,46 +59,76 @@ public class Generation : MonoBehaviour
 
     private void SpawnAll(Collider col)
     {
-        foreach (var entry in spawnList)
+        foreach (var entry in _SpawnList)
         {
-            if (!entry.prefab)
+            if (!entry.Prefab)
                 continue;
 
-            float radius = GetPrefabRadius(entry.prefab);
+            float radius = GetPrefabRadius(entry.Prefab);
 
-            for (int i = 0; i < entry.amount; i++)
+            for (int i = 0; i < entry.Amount; i++)
             {
-                Vector3 pos = FindValidPosition(radius, col);
+                Vector3 pos = FindValidPosition(radius, col, entry.MinDistanceFromPlayer);
                 placed.Add((pos, radius));
-                Instantiate(entry.prefab, pos, Quaternion.identity);
+                Instantiate(entry.Prefab, pos, Quaternion.identity);
             }
         }
     }
 
+    /// <summary>
+    /// Gets a radius using Collider first, then Renderer fallback.
+    /// Ensures all prefabs (tree/rock/etc.) get correct size.
+    /// </summary>
     private float GetPrefabRadius(GameObject prefab)
     {
-        var rend = prefab.GetComponentInChildren<Renderer>();
-        if (!rend)
-            return 0.5f;
+        // Prefer COLLIDER (best for trees/rocks)
+        var col = prefab.GetComponentInChildren<Collider>();
+        if (col)
+        {
+            Vector3 ext = col.bounds.extents;
+            return Mathf.Max(ext.x, ext.z);
+        }
 
-        Vector3 size = rend.bounds.size;
-        float maxAxis = Mathf.Max(size.x, Mathf.Max(size.y, size.z));
-        return maxAxis * 0.5f;
+        // Fallback to Renderer
+        var rend = prefab.GetComponentInChildren<Renderer>();
+        if (rend)
+        {
+            Vector3 ext = rend.bounds.extents;
+            return Mathf.Max(ext.x, ext.z);
+        }
+
+        // Safe fallback
+        return 1f;
     }
 
-    private Vector3 FindValidPosition(float radius, Collider col)
+    private Vector3 FindValidPosition(float radius, Collider col, float minPlayerDist)
     {
         const int attempts = 50;
 
         for (int i = 0; i < attempts; i++)
         {
-            Vector3 candidate = RandomPoint(col);
+            Vector3 candidate = RandomPointOnGround(col);
+
+            // Horizontal distance check (XZ only)
+            if (player && minPlayerDist > 0f)
+            {
+                Vector2 p = new Vector2(player.position.x, player.position.z);
+                Vector2 c = new Vector2(candidate.x, candidate.z);
+
+                if (Vector2.Distance(c, p) < minPlayerDist)
+                    continue;
+            }
 
             bool overlaps = false;
             foreach (var p in placed)
             {
                 float minDist = radius + p.radius;
-                if (Vector3.Distance(candidate, p.pos) < minDist)
+
+                // ONLY check in XZ
+                Vector2 a2d = new Vector2(candidate.x, candidate.z);
+                Vector2 b2d = new Vector2(p.pos.x, p.pos.z);
+
+                if (Vector2.Distance(a2d, b2d) < minDist)
                 {
                     overlaps = true;
                     break;
@@ -104,18 +139,28 @@ public class Generation : MonoBehaviour
                 return candidate;
         }
 
-        return RandomPoint(col);
+        // fallback
+        return RandomPointOnGround(col);
     }
 
-    private Vector3 RandomPoint(Collider col)
+    /// <summary>
+    /// Picks a random XZ point and raycasts down to the actual ground surface.
+    /// Fixes incorrect spawn height.
+    /// </summary>
+    private Vector3 RandomPointOnGround(Collider col)
     {
         var b = col.bounds;
 
-        return new Vector3
-        (
-            Random.Range(b.min.x, b.max.x),
-            b.max.y,
-            Random.Range(b.min.z, b.max.z)
-        );
+        float x = Random.Range(b.min.x, b.max.x);
+        float z = Random.Range(b.min.z, b.max.z);
+
+        // position ABOVE the surface
+        Vector3 origin = new Vector3(x, b.max.y + 5f, z);
+
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 50f))
+            return hit.point;
+
+        // fallback (surface center)
+        return new Vector3(x, b.center.y, z);
     }
 }
